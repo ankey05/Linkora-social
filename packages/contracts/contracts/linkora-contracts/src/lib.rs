@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, Env, Map, String, Symbol,
-    Vec,
+    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Map, String,
+    Symbol, Vec,
 };
 
 // ── Storage Keys ────────────────────────────────────────────────────────────
@@ -11,6 +11,9 @@ const POST_CT: Symbol = symbol_short!("POST_CT");
 const PROFILES: Symbol = symbol_short!("PROFILES");
 const FOLLOWS: Symbol = symbol_short!("FOLLOWS");
 const POOLS: Symbol = symbol_short!("POOLS");
+const ADMIN: Symbol = symbol_short!("ADMIN");
+const TREASURY: Symbol = symbol_short!("TREASURY");
+const FEE_BPS: Symbol = symbol_short!("FEE_BPS");
 
 // ── Data Types ───────────────────────────────────────────────────────────────
 
@@ -37,6 +40,14 @@ pub struct Profile {
 pub struct Pool {
     pub token: Address,
     pub balance: i128,
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone)]
+pub struct ContractUpgraded {
+    pub new_wasm_hash: BytesN<32>,
 }
 
 // ── Contract ─────────────────────────────────────────────────────────────────
@@ -140,6 +151,7 @@ impl LinkoraContract {
     // ── Tipping ───────────────────────────────────────────────────────────────
 
     /// Tip a post author. `token` is any SEP-41 token address.
+    /// Splits the tip between the author and the protocol treasury.
     pub fn tip(env: Env, tipper: Address, post_id: u64, token: Address, amount: i128) {
         tipper.require_auth();
         let mut posts: Map<u64, Post> = env
@@ -149,11 +161,27 @@ impl LinkoraContract {
             .unwrap_or(Map::new(&env));
         let mut post = posts.get(post_id).unwrap();
 
-        token::Client::new(&env, &token).transfer(
-            &tipper,
-            &post.author,
-            &amount,
-        );
+        let fee_bps: u32 = env.storage().instance().get(&FEE_BPS).unwrap_or(0);
+        let treasury: Option<Address> = env.storage().instance().get(&TREASURY);
+
+        let fee_amount = if let Some(ref _t) = treasury {
+            (amount * (fee_bps as i128)) / 10_000
+        } else {
+            0
+        };
+        let author_amount = amount - fee_amount;
+
+        let token_client = token::Client::new(&env, &token);
+
+        // Transfer fee to treasury if applicable
+        if fee_amount > 0 {
+            if let Some(treasury_addr) = treasury {
+                token_client.transfer(&tipper, &treasury_addr, &fee_amount);
+            }
+        }
+
+        // Transfer remainder to author
+        token_client.transfer(&tipper, &post.author, &author_amount);
 
         post.tip_total += amount;
         posts.set(post_id, post);
@@ -207,6 +235,43 @@ impl LinkoraContract {
 
     pub fn get_pool(env: Env, pool_id: Symbol) -> Option<Pool> {
         env.storage().persistent().get(&(POOLS, pool_id))
+    }
+
+    // ── Protocol Admin ────────────────────────────────────────────────────────
+
+    pub fn initialize(env: Env, admin: Address, treasury: Address, fee_bps: u32) {
+        if env.storage().persistent().has(&ADMIN) {
+            panic!("already initialized");
+        }
+        assert!(fee_bps <= 10_000, "fee_bps cannot exceed 10000");
+        env.storage().persistent().set(&ADMIN, &admin);
+        env.storage().instance().set(&TREASURY, &treasury);
+        env.storage().instance().set(&FEE_BPS, &fee_bps);
+    }
+
+    pub fn set_fee(env: Env, fee_bps: u32) {
+        let admin: Address = env.storage().persistent().get(&ADMIN).expect("not initialized");
+        admin.require_auth();
+        assert!(fee_bps <= 10_000, "fee_bps cannot exceed 10000");
+        env.storage().instance().set(&FEE_BPS, &fee_bps);
+    }
+
+    pub fn set_treasury(env: Env, treasury: Address) {
+        let admin: Address = env.storage().persistent().get(&ADMIN).expect("not initialized");
+        admin.require_auth();
+        env.storage().instance().set(&TREASURY, &treasury);
+    }
+
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let admin: Address = env.storage().persistent().get(&ADMIN).expect("not initialized");
+        admin.require_auth();
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+
+        env.events().publish(
+            (symbol_short!("upgraded"),),
+            ContractUpgraded { new_wasm_hash },
+        );
     }
 }
 
