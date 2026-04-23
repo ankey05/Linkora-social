@@ -46,6 +46,36 @@ pub struct Pool {
 
 #[contracttype]
 #[derive(Clone)]
+pub struct ProfileSetEvent {
+    pub user: Address,
+    pub username: String,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct FollowEvent {
+    pub follower: Address,
+    pub followee: Address,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct PostCreatedEvent {
+    pub id: u64,
+    pub author: Address,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct TipEvent {
+    pub tipper: Address,
+    pub post_id: u64,
+    pub amount: i128,
+    pub fee: i128,
+}
+
+#[contracttype]
+#[derive(Clone)]
 pub struct ContractUpgraded {
     pub new_wasm_hash: BytesN<32>,
 }
@@ -71,12 +101,17 @@ impl LinkoraContract {
         profiles.set(
             user.clone(),
             Profile {
-                address: user,
-                username,
+                address: user.clone(),
+                username: username.clone(),
                 creator_token,
             },
         );
         env.storage().persistent().set(&PROFILES, &profiles);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("profile"), symbol_short!("v1")),
+            ProfileSetEvent { user, username },
+        );
     }
 
     pub fn get_profile(env: Env, user: Address) -> Option<Profile> {
@@ -99,9 +134,14 @@ impl LinkoraContract {
             .get(&key)
             .unwrap_or(Vec::new(&env));
         if !list.contains(&followee) {
-            list.push_back(followee);
+            list.push_back(followee.clone());
         }
         env.storage().persistent().set(&key, &list);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("follow"), symbol_short!("v1")),
+            FollowEvent { follower, followee },
+        );
     }
 
     pub fn get_following(env: Env, user: Address) -> Vec<Address> {
@@ -123,7 +163,7 @@ impl LinkoraContract {
             + 1;
         let post = Post {
             id,
-            author,
+            author: author.clone(),
             content,
             tip_total: 0,
             timestamp: env.ledger().timestamp(),
@@ -136,6 +176,11 @@ impl LinkoraContract {
         posts.set(id, post);
         env.storage().persistent().set(&POSTS, &posts);
         env.storage().instance().set(&POST_CT, &id);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("post"), symbol_short!("v1")),
+            PostCreatedEvent { id, author },
+        );
         id
     }
 
@@ -186,6 +231,16 @@ impl LinkoraContract {
         post.tip_total += amount;
         posts.set(post_id, post);
         env.storage().persistent().set(&POSTS, &posts);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("tip"), symbol_short!("v1")),
+            TipEvent {
+                tipper,
+                post_id,
+                amount,
+                fee: fee_amount,
+            },
+        );
     }
 
     // ── Community Token Pool ──────────────────────────────────────────────────
@@ -269,7 +324,7 @@ impl LinkoraContract {
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
 
         env.events().publish(
-            (symbol_short!("upgraded"),),
+            (symbol_short!("Linkora"), symbol_short!("upgraded"), symbol_short!("v1")),
             ContractUpgraded { new_wasm_hash },
         );
     }
