@@ -55,6 +55,13 @@ pub struct ContractUpgraded {
     pub new_wasm_hash: BytesN<32>,
 }
 
+#[contracttype]
+#[derive(Clone)]
+pub struct PostDeleted {
+    pub post_id: u64,
+    pub author: Address,
+}
+
 // ── Contract ─────────────────────────────────────────────────────────────────
 
 #[contract]
@@ -135,6 +142,30 @@ impl LinkoraContract {
 
     pub fn get_post(env: Env, id: u64) -> Option<Post> {
         env.storage().persistent().get(&(POSTS, id))
+    }
+
+    /// Delete a post. Only the original author can delete their post.
+    pub fn delete_post(env: Env, author: Address, post_id: u64) {
+        author.require_auth();
+        
+        let key = (POSTS, post_id);
+        let post: Post = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("post does not exist");
+        
+        assert!(post.author == author, "only author can delete post");
+        
+        env.storage().persistent().remove(&key);
+        
+        env.events().publish(
+            (symbol_short!("post_del"),),
+            PostDeleted {
+                post_id,
+                author,
+            },
+        );
     }
 
     // ── Tipping ───────────────────────────────────────────────────────────────

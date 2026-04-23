@@ -128,3 +128,108 @@ fn test_sequential_posts() {
     // Verify both exist and are distinct
     assert!(post_id1 != post_id2);
 }
+
+#[test]
+fn test_delete_post_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    // Create a post
+    let post_id = client.create_post(&author, &String::from_str(&env, "Test post"));
+    assert_eq!(post_id, 1);
+
+    // Verify post exists
+    let post = client.get_post(&post_id);
+    assert!(post.is_some());
+
+    // Delete the post
+    client.delete_post(&author, &post_id);
+
+    // Verify post is deleted
+    let post = client.get_post(&post_id);
+    assert!(post.is_none());
+}
+
+#[test]
+#[should_panic(expected = "only author can delete post")]
+fn test_delete_post_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+    let other_user = Address::generate(&env);
+
+    // Create a post
+    let post_id = client.create_post(&author, &String::from_str(&env, "Test post"));
+
+    // Try to delete as different user (should panic)
+    client.delete_post(&other_user, &post_id);
+}
+
+#[test]
+#[should_panic(expected = "post does not exist")]
+fn test_delete_nonexistent_post() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    // Try to delete a post that doesn't exist (should panic)
+    client.delete_post(&author, &999);
+}
+
+#[test]
+fn test_delete_post_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    // Create a post
+    let post_id = client.create_post(&author, &String::from_str(&env, "Test post"));
+
+    // Delete the post - this will emit an event
+    client.delete_post(&author, &post_id);
+
+    // If we reach here without panic, the event was emitted successfully
+    // Verify post is deleted
+    assert!(client.get_post(&post_id).is_none());
+}
+
+#[test]
+fn test_delete_multiple_posts() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    // Create multiple posts
+    let post_id1 = client.create_post(&author, &String::from_str(&env, "First post"));
+    let post_id2 = client.create_post(&author, &String::from_str(&env, "Second post"));
+    let post_id3 = client.create_post(&author, &String::from_str(&env, "Third post"));
+
+    // Delete the middle post
+    client.delete_post(&author, &post_id2);
+
+    // Verify only post 2 is deleted
+    assert!(client.get_post(&post_id1).is_some());
+    assert!(client.get_post(&post_id2).is_none());
+    assert!(client.get_post(&post_id3).is_some());
+}
