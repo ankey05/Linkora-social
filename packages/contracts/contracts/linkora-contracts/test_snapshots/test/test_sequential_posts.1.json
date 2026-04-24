@@ -13,16 +13,13 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "set_profile",
+              "function_name": "create_post",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "string": "alice"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  "string": "First post"
                 }
               ]
             }
@@ -39,16 +36,13 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "set_profile",
+              "function_name": "create_post",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "string": "alice"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  "string": "Second post"
                 }
               ]
             }
@@ -56,12 +50,13 @@
           "sub_invocations": []
         }
       ]
-    ]
+    ],
+    []
   ],
   "ledger": {
     "protocol_version": 25,
     "sequence_number": 0,
-    "timestamp": 0,
+    "timestamp": 2000,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
     "min_persistent_entry_ttl": 4096,
@@ -78,10 +73,10 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "PROFILES"
+                    "symbol": "POSTS"
                   },
                   {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                    "u64": "1"
                   }
                 ]
               },
@@ -90,7 +85,7 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "address"
+                      "symbol": "author"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -98,18 +93,34 @@
                   },
                   {
                     "key": {
-                      "symbol": "creator_token"
+                      "symbol": "content"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                      "string": "First post"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "username"
+                      "symbol": "id"
                     },
                     "val": {
-                      "string": "alice"
+                      "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "timestamp"
+                    },
+                    "val": {
+                      "u64": "1000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "tip_total"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   }
                 ]
@@ -128,17 +139,56 @@
               "ext": "v0",
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
               "key": {
-                "symbol": "UNAMES"
+                "vec": [
+                  {
+                    "symbol": "POSTS"
+                  },
+                  {
+                    "u64": "2"
+                  }
+                ]
               },
               "durability": "persistent",
               "val": {
                 "map": [
                   {
                     "key": {
-                      "string": "alice"
+                      "symbol": "author"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "content"
+                    },
+                    "val": {
+                      "string": "Second post"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "id"
+                    },
+                    "val": {
+                      "u64": "2"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "timestamp"
+                    },
+                    "val": {
+                      "u64": "2000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "tip_total"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   }
                 ]
@@ -163,7 +213,16 @@
                   "executable": {
                     "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                   },
-                  "storage": null
+                  "storage": [
+                    {
+                      "key": {
+                        "symbol": "POST_CT"
+                      },
+                      "val": {
+                        "u64": "2"
+                      }
+                    }
+                  ]
                 }
               }
             }
