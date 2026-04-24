@@ -51,6 +51,36 @@ pub struct Pool {
 
 #[contracttype]
 #[derive(Clone)]
+pub struct ProfileSetEvent {
+    pub user: Address,
+    pub username: String,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct FollowEvent {
+    pub follower: Address,
+    pub followee: Address,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct PostCreatedEvent {
+    pub id: u64,
+    pub author: Address,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct TipEvent {
+    pub tipper: Address,
+    pub post_id: u64,
+    pub amount: i128,
+    pub fee: i128,
+}
+
+#[contracttype]
+#[derive(Clone)]
 pub struct ContractUpgraded {
     pub new_wasm_hash: BytesN<32>,
 }
@@ -71,12 +101,25 @@ impl LinkoraContract {
     /// to avoid deserializing/serializing the entire profiles map on every operation.
     pub fn set_profile(env: Env, user: Address, username: String, creator_token: Address) {
         user.require_auth();
-        let profile = Profile {
-            address: user.clone(),
-            username,
-            creator_token,
-        };
-        env.storage().persistent().set(&(PROFILES, user), &profile);
+        let mut profiles: Map<Address, Profile> = env
+            .storage()
+            .persistent()
+            .get(&PROFILES)
+            .unwrap_or(Map::new(&env));
+        profiles.set(
+            user.clone(),
+            Profile {
+                address: user.clone(),
+                username: username.clone(),
+                creator_token,
+            },
+        );
+        env.storage().persistent().set(&PROFILES, &profiles);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("profile"), symbol_short!("v1")),
+            ProfileSetEvent { user, username },
+        );
     }
 
     pub fn get_profile(env: Env, user: Address) -> Option<Profile> {
@@ -94,9 +137,14 @@ impl LinkoraContract {
             .get(&key)
             .unwrap_or(Vec::new(&env));
         if !list.contains(&followee) {
-            list.push_back(followee);
+            list.push_back(followee.clone());
         }
         env.storage().persistent().set(&key, &list);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("follow"), symbol_short!("v1")),
+            FollowEvent { follower, followee },
+        );
     }
 
     pub fn get_following(env: Env, user: Address) -> Vec<Address> {
@@ -123,13 +171,18 @@ impl LinkoraContract {
             + 1;
         let post = Post {
             id,
-            author,
+            author: author.clone(),
             content,
             tip_total: 0,
             timestamp: env.ledger().timestamp(),
         };
         env.storage().persistent().set(&(POSTS, id), &post);
         env.storage().instance().set(&POST_CT, &id);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("post"), symbol_short!("v1")),
+            PostCreatedEvent { id, author },
+        );
         id
     }
 
@@ -140,19 +193,47 @@ impl LinkoraContract {
     // ── Tipping ───────────────────────────────────────────────────────────────
 
     /// Tip a post author. `token` is any SEP-41 token address.
+    /// Splits the tip between the author and the protocol treasury.
     pub fn tip(env: Env, tipper: Address, post_id: u64, token: Address, amount: i128) {
         tipper.require_auth();
         let key = (POSTS, post_id);
         let mut post: Post = env.storage().persistent().get(&key).unwrap();
 
-        token::Client::new(&env, &token).transfer(
-            &tipper,
-            &post.author,
-            &amount,
-        );
+        let fee_bps: u32 = env.storage().instance().get(&FEE_BPS).unwrap_or(0);
+        let treasury: Option<Address> = env.storage().instance().get(&TREASURY);
+
+        let fee_amount = if let Some(ref _t) = treasury {
+            (amount * (fee_bps as i128)) / 10_000
+        } else {
+            0
+        };
+        let author_amount = amount - fee_amount;
+
+        let token_client = token::Client::new(&env, &token);
+
+        // Transfer fee to treasury if applicable
+        if fee_amount > 0 {
+            if let Some(treasury_addr) = treasury {
+                token_client.transfer(&tipper, &treasury_addr, &fee_amount);
+            }
+        }
+
+        // Transfer remainder to author
+        token_client.transfer(&tipper, &post.author, &author_amount);
 
         post.tip_total += amount;
-        env.storage().persistent().set(&key, &post);
+        posts.set(post_id, post);
+        env.storage().persistent().set(&POSTS, &posts);
+
+        env.events().publish(
+            (symbol_short!("Linkora"), symbol_short!("tip"), symbol_short!("v1")),
+            TipEvent {
+                tipper,
+                post_id,
+                amount,
+                fee: fee_amount,
+            },
+        );
     }
 
     // ── Community Token Pool ──────────────────────────────────────────────────
@@ -220,7 +301,7 @@ impl LinkoraContract {
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
 
         env.events().publish(
-            (symbol_short!("upgraded"),),
+            (symbol_short!("Linkora"), symbol_short!("upgraded"), symbol_short!("v1")),
             ContractUpgraded { new_wasm_hash },
         );
     }
