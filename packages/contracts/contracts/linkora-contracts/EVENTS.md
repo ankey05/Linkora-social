@@ -66,6 +66,38 @@ Emitted when the contract WASM is upgraded.
 - **Data Payload**: `ContractUpgraded`
   - `new_wasm_hash`: `BytesN<32>`
 
+### PostDeleted
+Emitted when a post is deleted by its author.
+
+- **Topic 0**: `Linkora`
+- **Topic 1**: `post_del`
+- **Topic 2**: `v1`
+- **Data Payload**: `PostDeleted`
+  - `post_id`: `u64`
+  - `author`: `Address`
+
+### PoolDeposit
+Emitted when tokens are deposited into a community pool.
+
+- **Topic 0**: `Linkora`
+- **Topic 1**: `deposit`
+- **Topic 2**: `v1`
+- **Data Payload**: `PoolDepositEvent`
+  - `depositor`: `Address`
+  - `pool_id`: `Symbol`
+  - `amount`: `i128`
+
+### PoolWithdraw
+Emitted when tokens are withdrawn from a community pool.
+
+- **Topic 0**: `Linkora`
+- **Topic 1**: `withdraw`
+- **Topic 2**: `v1`
+- **Data Payload**: `PoolWithdrawEvent`
+  - `recipient`: `Address`
+  - `pool_id`: `Symbol`
+  - `amount`: `i128`
+
 ## Querying and Decoding
 
 ### Using Stellar CLI

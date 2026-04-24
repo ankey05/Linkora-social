@@ -20,7 +20,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "string": "First post"
+                  "string": "Post 1"
                 }
               ]
             }
@@ -29,7 +29,6 @@
         }
       ]
     ],
-    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
@@ -43,7 +42,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "string": "Second post"
+                  "string": "Post 2"
                 }
               ]
             }
@@ -57,7 +56,7 @@
   "ledger": {
     "protocol_version": 25,
     "sequence_number": 0,
-    "timestamp": 2000,
+    "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
     "min_persistent_entry_ttl": 4096,
@@ -97,7 +96,7 @@
                       "symbol": "content"
                     },
                     "val": {
-                      "string": "First post"
+                      "string": "Post 1"
                     }
                   },
                   {
@@ -113,7 +112,7 @@
                       "symbol": "timestamp"
                     },
                     "val": {
-                      "u64": "1000"
+                      "u64": "0"
                     }
                   },
                   {
@@ -165,7 +164,7 @@
                       "symbol": "content"
                     },
                     "val": {
-                      "string": "Second post"
+                      "string": "Post 2"
                     }
                   },
                   {
@@ -181,7 +180,7 @@
                       "symbol": "timestamp"
                     },
                     "val": {
-                      "u64": "2000"
+                      "u64": "0"
                     }
                   },
                   {
