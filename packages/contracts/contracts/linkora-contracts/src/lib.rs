@@ -278,6 +278,10 @@ impl LinkoraContract {
         id
     }
 
+    pub fn get_post_count(env: Env) -> u64 {
+        env.storage().instance().get(&POST_CT).unwrap_or(0u64)
+    }
+
     pub fn get_post(env: Env, id: u64) -> Option<Post> {
         let key = (POSTS, id);
         let result: Option<Post> = env.storage().persistent().get(&key);
