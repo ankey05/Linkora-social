@@ -60,13 +60,13 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "symbol": "community"
+                  "symbol": "pool1"
                 },
                 {
                   "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                 },
                 {
-                  "i128": "1000"
+                  "i128": "500"
                 }
               ]
             }
@@ -85,7 +85,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                     },
                     {
-                      "i128": "1000"
+                      "i128": "500"
                     }
                   ]
                 }
@@ -96,17 +96,18 @@
         }
       ]
     ],
+    [],
     []
   ],
   "ledger": {
     "protocol_version": 25,
-    "sequence_number": 0,
+    "sequence_number": 200000,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
-    "min_persistent_entry_ttl": 4096,
+    "min_persistent_entry_ttl": 500,
     "min_temp_entry_ttl": 16,
-    "max_entry_ttl": 6312000,
+    "max_entry_ttl": 600000,
     "ledger_entries": [
       {
         "entry": {
@@ -147,7 +148,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 6311999
+        "live_until": 699999
       },
       {
         "entry": {
@@ -162,7 +163,7 @@
                     "symbol": "POOLS"
                   },
                   {
-                    "symbol": "community"
+                    "symbol": "pool1"
                   }
                 ]
               },
@@ -174,7 +175,7 @@
                       "symbol": "balance"
                     },
                     "val": {
-                      "i128": "1000"
+                      "i128": "500"
                     }
                   },
                   {
@@ -191,7 +192,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 535000
+        "live_until": 735000
       },
       {
         "entry": {
@@ -214,7 +215,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 200499
       },
       {
         "entry": {
@@ -234,7 +235,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 6311999
+        "live_until": 699999
       },
       {
         "entry": {
@@ -254,7 +255,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 6311999
+        "live_until": 699999
       },
       {
         "entry": {
@@ -281,7 +282,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "1000"
+                      "i128": "500"
                     }
                   },
                   {
@@ -306,7 +307,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 518400
+        "live_until": 618400
       },
       {
         "entry": {
@@ -333,7 +334,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "9000"
+                      "i128": "9500"
                     }
                   },
                   {
@@ -358,7 +359,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 518400
+        "live_until": 618400
       },
       {
         "entry": {
@@ -461,7 +462,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 120960
+        "live_until": 220960
       },
       {
         "entry": {
@@ -475,7 +476,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 100499
       }
     ]
   },
