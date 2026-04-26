@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Map, String,
+    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, String,
     Symbol, Vec,
 };
 
@@ -17,6 +17,7 @@ const INITIALIZED: Symbol = symbol_short!("INIT");
 const BLOCKS: Symbol = symbol_short!("BLOCKS");
 const FEE_BPS: Symbol = symbol_short!("FEE_BPS");
 const TREASURY: Symbol = symbol_short!("TREASURY");
+const LIKES: Symbol = symbol_short!("LIKES");
 
 // ── TTL Constants ─────────────────────────────────────────────────────────────
 //
@@ -301,6 +302,7 @@ impl LinkoraContract {
                 content,
                 tip_total: 0,
                 timestamp: env.ledger().timestamp(),
+                like_count: 0,
             },
         );
         Self::bump(&env, &key);
@@ -311,6 +313,10 @@ impl LinkoraContract {
             PostCreatedEvent { id, author },
         );
         id
+    }
+
+    pub fn get_post_count(env: Env) -> u64 {
+        env.storage().instance().get(&POST_CT).unwrap_or(0u64)
     }
 
     pub fn get_post(env: Env, id: u64) -> Option<Post> {
@@ -333,45 +339,38 @@ impl LinkoraContract {
         assert!(post.author == author, "only author can delete post");
         env.storage().persistent().remove(&key);
         env.events().publish(
-            (symbol_short!("post_del"),),
+            (symbol_short!("Linkora"), symbol_short!("post_del"), symbol_short!("v1")),
             PostDeleted { post_id, author },
         );
     }
 
-    // ── Reactions ────────────────────────────────────────────────────────────
+    // ── Reactions ─────────────────────────────────────────────────────────────
 
     pub fn like_post(env: Env, user: Address, post_id: u64) {
         user.require_auth();
 
-        let key = (LIKES, post_id, user.clone());
-        if env.storage().persistent().has(&key) {
+        let like_key = (LIKES, post_id, user.clone());
+        if env.storage().persistent().has(&like_key) {
             return;
         }
 
-        let mut posts: Map<u64, Post> = env
+        let post_key = (POSTS, post_id);
+        let mut post: Post = env
             .storage()
             .persistent()
-            .get(&POSTS)
-            .unwrap_or(Map::new(&env));
-
-        if let Some(mut post) = posts.get(post_id) {
-            post.like_count += 1;
-            posts.set(post_id, post);
-            env.storage().persistent().set(&POSTS, &posts);
-            env.storage().persistent().set(&key, &true);
-        } else {
-            panic!("post not found");
-        }
+            .get(&post_key)
+            .expect("post not found");
+        post.like_count += 1;
+        env.storage().persistent().set(&post_key, &post);
+        Self::bump(&env, &post_key);
+        env.storage().persistent().set(&like_key, &true);
+        Self::bump(&env, &like_key);
     }
 
     pub fn get_like_count(env: Env, post_id: u64) -> u64 {
-        let posts: Map<u64, Post> = env
-            .storage()
-            .persistent()
-            .get(&POSTS)
-            .unwrap_or(Map::new(&env));
-
-        posts.get(post_id).map(|p| p.like_count).unwrap_or(0)
+        let key = (POSTS, post_id);
+        let result: Option<Post> = env.storage().persistent().get(&key);
+        result.map(|p| p.like_count).unwrap_or(0)
     }
 
     pub fn has_liked(env: Env, user: Address, post_id: u64) -> bool {
@@ -462,7 +461,6 @@ impl LinkoraContract {
 
     // ── Upgradability ─────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
     pub fn initialize(env: Env, admin: Address) {
         if env
             .storage()
@@ -470,7 +468,6 @@ impl LinkoraContract {
             .get::<Symbol, bool>(&INITIALIZED)
             .unwrap_or(false)
         {
-=======
     /// One-time initialization. Stores the admin address and sets the
     /// INITIALIZED flag in instance storage. Panics if called again.
     pub fn initialize(env: Env, admin: Address) {

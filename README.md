@@ -74,6 +74,7 @@ The primary contract is `LinkoraContract`.
 | `follow(follower, followee)` | Record a follow relationship. Duplicate follows are ignored. | `follower` | `follower: Address` — account initiating the follow<br>`followee: Address` — account being followed | `()` |
 | `get_following(user)` | Return all accounts followed by a user. | None | `user: Address` | `Vec<Address>` |
 | `create_post(author, content)` | Publish a new on-chain post. Post IDs are assigned sequentially starting at 1. | `author` | `author: Address` — post creator<br>`content: String` — post body | `u64` — new post ID |
+| `get_post_count()` | Return the total number of posts created so far. Returns `0` when no posts exist. | None | None | `u64` |
 | `get_post(id)` | Fetch a post by ID. | None | `id: u64` | `Option<Post>` |
 | `tip(tipper, post_id, token, amount)` | Transfer SEP-41 tokens directly to a post's author and increment the post's `tip_total`. | `tipper` | `tipper: Address` — sender<br>`post_id: u64` — target post<br>`token: Address` — SEP-41 token contract<br>`amount: i128` — token units to transfer | `()` |
 | `pool_deposit(depositor, pool_id, token, amount)` | Deposit tokens into a named community pool. `amount` must be greater than zero. | `depositor` | `depositor: Address` — token sender<br>`pool_id: Symbol` — pool identifier<br>`token: Address` — SEP-41 token contract<br>`amount: i128` — token units to deposit (must be > 0) | `()` |

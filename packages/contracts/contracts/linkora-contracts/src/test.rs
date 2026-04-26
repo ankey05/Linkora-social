@@ -181,7 +181,25 @@ fn test_block_user() {
     assert_eq!(id2, 2);
     assert_eq!(client.get_post(&id2).unwrap().timestamp, 2000);
 }
+#[test]
+fn test_get_post_count_after_create_and_delete() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    let author = Address::generate(&env);
 
+    assert_eq!(client.get_post_count(), 0);
+
+    let id1 = client.create_post(&author, &String::from_str(&env, "First post"));
+    assert_eq!(client.get_post_count(), 1);
+
+    let _id2 = client.create_post(&author, &String::from_str(&env, "Second post"));
+    assert_eq!(client.get_post_count(), 2);
+
+    client.delete_post(&author, &id1);
+    assert_eq!(client.get_post_count(), 2);
+}
 // ── Pool tests ────────────────────────────────────────────────────────────────
 
 #[test]
