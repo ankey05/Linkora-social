@@ -14,6 +14,9 @@ const FOLLOWERS: Symbol = symbol_short!("FOLLOWERS");
 const POOLS: Symbol = symbol_short!("POOLS");
 const ADMIN: Symbol = symbol_short!("ADMIN");
 const INITIALIZED: Symbol = symbol_short!("INIT");
+const BLOCKS: Symbol = symbol_short!("BLOCKS");
+const FEE_BPS: Symbol = symbol_short!("FEE_BPS");
+const TREASURY: Symbol = symbol_short!("TREASURY");
 const LIKES: Symbol = symbol_short!("LIKES");
 
 // ── TTL Constants ─────────────────────────────────────────────────────────────
@@ -57,6 +60,8 @@ pub struct Profile {
 pub struct Pool {
     pub token: Address,
     pub balance8,
+    pub balance: i128,
+    pub admins: Vec<Address>,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -175,6 +180,10 @@ impl LinkoraContract {
 
     pub fn follow(env: Env, follower: Address, followee: Address) {
         follower.require_auth();
+        
+        if Self::is_blocked(env.clone(), followee.clone(), follower.clone()) {
+            panic!("blocked");
+        }
 
         let key = (FOLLOWS, follower.clone());
         let mut list: Vec<Address> = env
@@ -261,6 +270,37 @@ impl LinkoraContract {
     }
 
 ───────────────────────────────────────────────
+    // ── Blocking ────────────────────────────────────────────────────────────
+
+    pub fn block_user(env: Env, blocker: Address, blocked: Address) {
+        blocker.require_auth();
+        let key = (BLOCKS, blocker.clone());
+        let mut blocks: Map<Address, ()> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Map::new(&env));
+        blocks.set(blocked, ());
+        env.storage().persistent().set(&key, &blocks);
+    }
+
+    pub fn unblock_user(env: Env, blocker: Address, blocked: Address) {
+        blocker.require_auth();
+        let key = (BLOCKS, blocker.clone());
+        let mut blocks: Map<Address, ()> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Map::new(&env));
+        blocks.remove(blocked);
+        env.storage().persistent().set(&key, &blocks);
+    }
+
+    pub fn is_blocked(env: Env, blocker: Address, blocked: Address) -> bool {
+        env.storage().persistent().get(&(BLOCKS, blocker)).unwrap_or(Map::new(&env)).contains_key(&blocked)
+    }
+
+    // ── Posts ─────────────────────────────────────────────────────────────────
 
     pub fn create_post(env: Env, author: Address, content: String) -> u64 {
         author.require_auth();
@@ -357,8 +397,13 @@ impl LinkoraContract {
     pub fn tip(env: Env, tipper: Address, post_id: u64, token: Address, amount: i128) {
         assert!(amount > 0, "tip amount must be positive");
         tipper.require_auth();
+        
         let key = (POSTS, post_id);
         let mut post: Post = env.storage().persistent().get(&key).expect("post not found");
+        
+        if Self::is_blocked(env.clone(), post.author.clone(), tipper.clone()) {
+            panic!("blocked");
+        }
 
         token::Client::new(&env, &token).transfer(&tipper, &post.author, &amount);
 
@@ -373,6 +418,22 @@ impl LinkoraContract {
     }
 
     // ── Community Pool ────────────────────────────────────────────────────────
+
+    pub fn create_pool(env: Env, pool_id: Symbol, token: Address, admins: Vec<Address>) {
+        assert!(!admins.is_empty(), "pool must have at least one admin");
+        let key = (POOLS, pool_id);
+        assert!(
+            !env.storage().persistent().has(&key),
+            "pool already exists"
+        );
+        let pool = Pool {
+            token,
+            balance: 0,
+            admins,
+        };
+        env.storage().persistent().set(&key, &pool);
+        Self::bump(&env, &key);
+    }
 
     pub fn pool_deposit(
         env: Env,
@@ -393,7 +454,7 @@ impl LinkoraContract {
             .storage()
             .persistent()
             .get(&key)
-            .unwrap_or(Pool { token, balance: 0 });
+            .unwrap_or(Pool { token, balance: 0, admins: Vec::new(&env) });
         pool.balance += amount;
         env.storage().persistent().set(&key, &pool);
         Self::bump(&env, &key);
@@ -408,6 +469,13 @@ impl LinkoraContract {
             .persistent()
             .get(&key)
             .expect("pool not found");
+        
+        // Verify recipient is in the admin set
+        assert!(
+            pool.admins.iter().any(|admin| admin == &recipient),
+            "only pool admins can withdraw"
+        );
+        
         assert!(pool.balance >= amount, "insufficient pool balance");
         pool.balance -= amount;
         env.storage().persistent().set(&key, &pool);
@@ -437,10 +505,29 @@ impl LinkoraContract {
             .get::<Symbol, bool>(&INITIALIZED)
             .unwrap_or(false)
         {
+    /// One-time initialization. Stores the admin address and sets the
+    /// INITIALIZED flag in instance storage. Panics if called again.
+    pub fn initialize(env: Env, admin: Address) {
+        if env
+            .storage()
+            .instance()
+            .get::<Symbol, bool>(&INITIALIZED)
+            .unwrap_or(false)
+        {
             panic!("already initialized");
         }
         env.storage().instance().set(&INITIALIZED, &true);
         env.storage().instance().set(&ADMIN, &admin);
+    }
+
+    pub fn set_fee(env: Env, fee_bps: u32) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&FEE_BPS, &fee_bps);
+    }
+
+    pub fn set_treasury(env: Env, treasury: Address) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&TREASURY, &treasury);
     }
 
     pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {

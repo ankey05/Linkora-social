@@ -30,6 +30,100 @@ fn setup_token(env: &Env, admin: &Address) -> Address {
 fn test_set_and_get_profile() {
     let env = Env::default();
     env.mock_all_auths();
+<<<<<<< HEAD
+=======
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    let author = Address::generate(&env);
+    let tipper = Address::generate(&env);
+    
+    // Initialize with 0% fee
+    client.initialize(&admin, &treasury, &0);
+
+    let token = setup_token(&env, &tipper);
+    let post_id = client.create_post(&author, &String::from_str(&env, "Zero fee post"));
+
+    client.tip(&tipper, &post_id, &token, &1000);
+
+    assert_eq!(TokenClient::new(&env, &token).balance(&treasury), 0);
+    assert_eq!(TokenClient::new(&env, &token).balance(&author), 1000);
+}
+
+#[test]
+fn test_set_fee_and_treasury() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    
+    client.initialize(&admin, &treasury, &0);
+
+    // Update fee
+    client.set_fee(&500); // 5%
+    
+    // Update treasury
+    let new_treasury = Address::generate(&env);
+    client.set_treasury(&new_treasury);
+
+    let author = Address::generate(&env);
+    let tipper = Address::generate(&env);
+    let token = setup_token(&env, &tipper);
+    let post_id = client.create_post(&author, &String::from_str(&env, "Update test post"));
+
+    client.tip(&tipper, &post_id, &token, &1000);
+
+    assert_eq!(TokenClient::new(&env, &token).balance(&new_treasury), 50);
+    assert_eq!(TokenClient::new(&env, &token).balance(&author), 950);
+}
+
+#[test]
+#[should_panic(expected = "fee_bps cannot exceed 10000")]
+fn test_invalid_fee() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &10001);
+}
+
+#[test]
+#[should_panic(expected = "deposit amount must be positive")]
+fn test_pool_deposit_zero_amount() {
+=======
+fn test_sequential_posts() {
+>>>>>>> main
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+<<<<<<< fix/reject-zero-negative-pool-withdrawal
+    let user = Address::generate(&env);
+    let token = setup_token(&env, &user);
+    let pool_id = symbol_short!("community");
+
+    // Zero deposit must be rejected before any state change
+    client.pool_deposit(&user, &pool_id, &token, &0);
+}
+
+#[test]
+#[should_panic(expected = "deposit amount must be positive")]
+fn test_pool_deposit_negative_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+>>>>>>> 7e386b3 (Add block_user function to restrict unwanted follow and tip interactions)
     let contract_id = env.register(LinkoraContract, ());
     let client = LinkoraContractClient::new(&env, &contract_id);
 
@@ -61,6 +155,7 @@ fn test_follow_is_idempotent() {
     assert_eq!(following.get(0).unwrap(), bob);
 }
 
+<<<<<<< HEAD
 // ── Post tests ────────────────────────────────────────────────────────────────
 
 // ── Unfollow tests ────────────────────────────────────────────────────────────
@@ -137,10 +232,15 @@ fn test_double_unfollow_does_not_panic() {
 
 #[test]
 fn test_sequential_posts() {
+=======
+#[test]
+fn test_block_user() {
+>>>>>>> 7e386b3 (Add block_user function to restrict unwanted follow and tip interactions)
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(LinkoraContract, ());
     let client = LinkoraContractClient::new(&env, &contract_id);
+<<<<<<< HEAD
     let author = Address::generate(&env);
 
     env.ledger().set_timestamp(1000);
@@ -177,10 +277,29 @@ fn test_get_post_count_after_create_and_delete() {
 #[test]
 #[should_panic(expected = "deposit amount must be positive")]
 fn test_pool_deposit_zero_amount() {
+=======
+
+    let blocker = Address::generate(&env);
+    let blocked = Address::generate(&env);
+
+    // Block
+    client.block_user(&blocker, &blocked);
+    assert!(client.is_blocked(&blocker, &blocked));
+
+    // Unblock
+    client.unblock_user(&blocker, &blocked);
+    assert!(!client.is_blocked(&blocker, &blocked));
+}
+
+#[test]
+#[should_panic(expected = "blocked")]
+fn test_follow_after_block() {
+>>>>>>> 7e386b3 (Add block_user function to restrict unwanted follow and tip interactions)
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(LinkoraContract, ());
     let client = LinkoraContractClient::new(&env, &contract_id);
+<<<<<<< HEAD
     let user = Address::generate(&env);
     let token = setup_token(&env, &user);
     client.pool_deposit(&user, &symbol_short!("community"), &token, &0);
@@ -189,10 +308,26 @@ fn test_pool_deposit_zero_amount() {
 #[test]
 #[should_panic(expected = "deposit amount must be positive")]
 fn test_pool_deposit_negative_amount() {
+=======
+
+    let blocker = Address::generate(&env);
+    let blocked = Address::generate(&env);
+
+    // Blocker blocks blocked
+    client.block_user(&blocker, &blocked);
+
+    // Blocked tries to follow blocker — should panic
+    client.follow(&blocked, &blocker);
+}
+
+#[test]
+fn test_follow_after_unblock() {
+>>>>>>> 7e386b3 (Add block_user function to restrict unwanted follow and tip interactions)
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(LinkoraContract, ());
     let client = LinkoraContractClient::new(&env, &contract_id);
+<<<<<<< HEAD
     let user = Address::generate(&env);
     let token = setup_token(&env, &user);
     client.pool_deposit(&user, &symbol_short!("community"), &token, &-1);
@@ -222,6 +357,144 @@ fn test_pool_withdraw_negative_amount() {
     let token = setup_token(&env, &user);
     client.pool_deposit(&user, &symbol_short!("community"), &token, &1_000);
     client.pool_withdraw(&user, &symbol_short!("community"), &-1);
+}
+
+#[test]
+fn test_pool_creation_with_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let admin = Address::generate(&env);
+    let token = Address::generate(&env);
+    let pool_id = symbol_short!("pool1");
+    
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    client.create_pool(&pool_id, &token, &admins);
+    
+    let pool = client.get_pool(&pool_id).expect("pool should exist");
+    assert_eq!(pool.balance, 0);
+    assert_eq!(pool.admins.len(), 1);
+    assert_eq!(pool.admins.get(0).unwrap(), admin);
+}
+
+#[test]
+fn test_authorized_pool_withdrawal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let pool_id = symbol_short!("pool1");
+    
+    // Create pool with admin
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    client.create_pool(&pool_id, &token, &admins);
+    
+    // Deposit into pool
+    client.pool_deposit(&admin, &pool_id, &token, &1_000);
+    
+    // Admin should be able to withdraw
+    client.pool_withdraw(&admin, &pool_id, &500);
+    
+    let pool = client.get_pool(&pool_id).expect("pool should exist");
+    assert_eq!(pool.balance, 500);
+}
+
+#[test]
+#[should_panic(expected = "only pool admins can withdraw")]
+fn test_unauthorized_pool_withdrawal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let admin = Address::generate(&env);
+    let unauthorized_user = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let pool_id = symbol_short!("pool1");
+    
+    // Create pool with admin
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    client.create_pool(&pool_id, &token, &admins);
+    
+    // Deposit into pool
+    client.pool_deposit(&admin, &pool_id, &token, &1_000);
+    
+    // Non-admin should not be able to withdraw
+    client.pool_withdraw(&unauthorized_user, &pool_id, &500);
+}
+
+#[test]
+fn test_multi_admin_pool_withdrawal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let admin1 = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+    let token = setup_token(&env, &admin1);
+    let pool_id = symbol_short!("pool1");
+    
+    // Create pool with multiple admins
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin1.clone());
+    admins.push_back(admin2.clone());
+    client.create_pool(&pool_id, &token, &admins);
+    
+    // Deposit into pool
+    client.pool_deposit(&admin1, &pool_id, &token, &1_000);
+    
+    // Both admins should be able to withdraw
+    client.pool_withdraw(&admin1, &pool_id, &300);
+    let pool = client.get_pool(&pool_id).expect("pool should exist");
+    assert_eq!(pool.balance, 700);
+    
+    client.pool_withdraw(&admin2, &pool_id, &200);
+    let pool = client.get_pool(&pool_id).expect("pool should exist");
+    assert_eq!(pool.balance, 500);
+}
+
+#[test]
+#[should_panic(expected = "pool must have at least one admin")]
+fn test_pool_creation_without_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let token = Address::generate(&env);
+    let pool_id = symbol_short!("pool1");
+    
+    let admins = Vec::new(&env);
+    client.create_pool(&pool_id, &token, &admins);
+}
+
+#[test]
+#[should_panic(expected = "pool already exists")]
+fn test_pool_duplicate_creation() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+    
+    let admin = Address::generate(&env);
+    let token = Address::generate(&env);
+    let pool_id = symbol_short!("pool1");
+    
+    let mut admins = Vec::new(&env);
+    admins.push_back(admin.clone());
+    client.create_pool(&pool_id, &token, &admins);
+    
+    // Try to create the same pool again
+    client.create_pool(&pool_id, &token, &admins);
 }
 
 // ── TTL tests ─────────────────────────────────────────────────────────────────
@@ -392,4 +665,22 @@ fn test_like_post() {
     client.like_post(&user2, &post_id);
     assert_eq!(client.get_like_count(&post_id), 2);
     assert!(client.has_liked(&user2, &post_id));
+=======
+
+    let blocker = Address::generate(&env);
+    let blocked = Address::generate(&env);
+
+    // Block
+    client.block_user(&blocker, &blocked);
+
+    // Unblock
+    client.unblock_user(&blocker, &blocked);
+
+    // Now follow should work
+    client.follow(&blocked, &blocker);
+
+    let followers = client.get_followers(&blocker);
+    assert_eq!(followers.len(), 1);
+    assert_eq!(followers.get(0).unwrap(), blocked);
+>>>>>>> 7e386b3 (Add block_user function to restrict unwanted follow and tip interactions)
 }
