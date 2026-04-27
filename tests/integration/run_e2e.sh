@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REQUIRED_STELLAR_VERSION="22.8.1"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT_DIR="$ROOT_DIR/packages/contracts/contracts/linkora-contracts"
 CFG_DIR="$(mktemp -d)"
@@ -26,6 +28,13 @@ require_cmd() {
 require_cmd stellar
 require_cmd cargo
 require_cmd docker
+
+STELLAR_VERSION="$(stellar --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'| head -1)"
+if [[ "$STELLAR_VERSION" != "$REQUIRED_STELLAR_VERSION" ]]; then
+  echo "error: stellar-cli version mismatch (found $STELLAR_VERSION, required $REQUIRED_STELLAR_VERSION)" >&2
+  echo "  Install the correct version with: cargo install --locked stellar-cli --version $REQUIRED_STELLAR_VERSION" >&2
+  exit 1
+fi
 
 echo "[1/8] Starting local Stellar sandbox container..."
 stellar --config-dir "$CFG_DIR" container start local --name "$CONTAINER_NAME"
