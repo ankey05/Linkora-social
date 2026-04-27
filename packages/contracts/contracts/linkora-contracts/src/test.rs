@@ -158,13 +158,27 @@ fn test_like_post() {
     let user = Address::generate(&env);
     let post_id = client.create_post(&author, &String::from_str(&env, "Like test"));
 
+    // First like: should emit LikePostEvent
     client.like_post(&user, &post_id);
+    let events = env.events().get();
+    let like_events: Vec<LikePostEvent> = events.iter()
+        .filter_map(|e| e.data::<LikePostEvent>(&env).ok())
+        .collect();
+    assert_eq!(like_events.len(), 1, "Should emit exactly one LikePostEvent on first like");
+    assert_eq!(like_events[0].user, user);
+    assert_eq!(like_events[0].post_id, post_id);
+
+    // Duplicate like: should not emit another event
+    client.like_post(&user, &post_id);
+    let events = env.events().get();
+    let like_events: Vec<LikePostEvent> = events.iter()
+        .filter_map(|e| e.data::<LikePostEvent>(&env).ok())
+        .collect();
+    assert_eq!(like_events.len(), 1, "Duplicate like should not emit another LikePostEvent");
+
+    // Verify state
     assert_eq!(client.get_like_count(&post_id), 1);
     assert!(client.has_liked(&user, &post_id));
-
-    // Duplicate like should not increment
-    client.like_post(&user, &post_id);
-    assert_eq!(client.get_like_count(&post_id), 1);
 }
 
 #[test]
@@ -273,4 +287,56 @@ fn test_delete_post_non_existent() {
 
     let author = Address::generate(&env);
     client.delete_post(&author, &999);
+}
+
+#[test]
+#[should_panic(expected = "content cannot be empty")]
+fn test_create_post_empty_content_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, author, _) = setup_contract(&env);
+
+    let empty_content = String::from_str(&env, "");
+    client.create_post(&author, &empty_content);
+}
+
+#[test]
+#[should_panic(expected = "content too long")]
+fn test_create_post_too_long_content_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, author, _) = setup_contract(&env);
+
+    // Create a string of 281 characters
+    let mut long_content = String::from_str(&env, "");
+    for _ in 0..281 {
+        long_content.push_str(&env, "a");
+    }
+    client.create_post(&author, &long_content);
+}
+
+#[test]
+fn test_create_post_exactly_280_chars_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, author, _) = setup_contract(&env);
+
+    // Create a string of exactly 280 characters
+    let mut content_280 = String::from_str(&env, "");
+    for _ in 0..280 {
+        content_280.push_str(&env, "a");
+    }
+    let post_id = client.create_post(&author, &content_280);
+    assert_eq!(post_id, 1);
+}
+
+#[test]
+fn test_create_post_one_char_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, author, _) = setup_contract(&env);
+
+    let one_char = String::from_str(&env, "a");
+    let post_id = client.create_post(&author, &one_char);
+    assert_eq!(post_id, 1);
 }
