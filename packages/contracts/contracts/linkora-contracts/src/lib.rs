@@ -1,39 +1,26 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractevent, contractimpl, contracttype, symbol_short, token, Address, BytesN,
-    Env, Event, IntoVal, Map, String, Symbol, Vec, vec,
-    contract, contractevent, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Map,
-    String, Symbol, Vec,
+    contract, contractevent, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env,
+    Map, String, Symbol, Vec,
 };
 
 // ── Storage Keys ─────────────────────────────────────────────────────────────
 
-// Typed storage key enum for type-safe persistent storage access
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum StorageKey {
-    Post(u64),
-    Profile(Address),
-    Following(Address),
-    Followers(Address),
-    Pool(Symbol),
-    Like(u64, Address),
-}
-
-// Instance-level storage keys (simple Symbol keys)
+const POSTS: Symbol = symbol_short!("POSTS");
+// POST_CT: Tracks total posts ever created (not decremented on delete).
+// This counter is used for sequential post ID generation.
 const POST_CT: Symbol = symbol_short!("POST_CT");
+const PROFILES: Symbol = symbol_short!("PROFILES");
 const PROFILE_CT: Symbol = symbol_short!("PROF_CT");
+const FOLLOWS: Symbol = symbol_short!("FOLLOWS");
+const FOLLOWERS: Symbol = symbol_short!("FOLLOWRS");
+const POOLS: Symbol = symbol_short!("POOLS");
 const ADMIN: Symbol = symbol_short!("ADMIN");
 const TREASURY: Symbol = symbol_short!("TREASURY");
 const FEE_BPS: Symbol = symbol_short!("FEE_BPS");
 const INITIALIZED: Symbol = symbol_short!("INIT");
 const BLOCKS: Symbol = symbol_short!("BLOCKS");
-
-#[contracttype]
-pub enum StorageKey {
-    Posts(u64),
-    AuthorPosts(Address),
-}
+const LIKES: Symbol = symbol_short!("LIKES");
 
 // ── TTL Constants ─────────────────────────────────────────────────────────────
 //
@@ -99,26 +86,13 @@ pub struct FollowEvent {
     pub followee: Address,
 }
 
-#[contracttype]
+#[contractevent]
 #[derive(Clone)]
 pub struct UnfollowEvent {
+    #[topic]
     pub follower: Address,
+    #[topic]
     pub followee: Address,
-}
-
-impl Event for UnfollowEvent {
-    fn topics(&self, env: &Env) -> Vec<soroban_sdk::Val> {
-        vec![
-            &env,
-            symbol_short!("Linkora").into_val(env),
-            symbol_short!("unfollow").into_val(env),
-            symbol_short!("v1").into_val(env),
-        ]
-    }
-
-    fn data(&self, env: &Env) -> soroban_sdk::Val {
-        self.clone().into_val(env)
-    }
 }
 
 #[contractevent]
@@ -169,17 +143,10 @@ pub struct ContractUpgraded {
 #[contractevent]
 #[derive(Clone)]
 pub struct PostDeleted {
+    #[topic]
     pub post_id: u64,
+    #[topic]
     pub author: Address,
-}
-
-#[contractevent]
-#[derive(Clone)]
-pub struct LikePostEvent {
-    #[topic]
-    pub user: Address,
-    #[topic]
-    pub post_id: u64,
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -210,7 +177,7 @@ fn validate_username(username: &String) -> Result<(), &'static str> {
 fn validate_content(content: &String) -> Result<(), &'static str> {
     let len = content.len();
     if len < MIN_CONTENT_LEN {
-        return Err("content cannot be empty");
+        return Err("empty content");
     }
     if len > MAX_CONTENT_LEN {
         return Err("content too long");
@@ -244,7 +211,7 @@ impl LinkoraContract {
         user.require_auth();
         validate_username(&username).expect("invalid username");
 
-        let key = StorageKey::Profile(user.clone());
+        let key = (PROFILES, user.clone());
         if !env.storage().persistent().has(&key) {
             let count: u64 = env.storage().instance().get(&PROFILE_CT).unwrap_or(0);
             env.storage().instance().set(&PROFILE_CT, &(count + 1));
@@ -262,7 +229,7 @@ impl LinkoraContract {
     }
 
     pub fn get_profile(env: Env, user: Address) -> Option<Profile> {
-        let key = StorageKey::Profile(user);
+        let key = (PROFILES, user);
         let result: Option<Profile> = env.storage().persistent().get(&key);
         if result.is_some() {
             Self::bump(&env, &key);
@@ -278,11 +245,12 @@ impl LinkoraContract {
 
     pub fn follow(env: Env, follower: Address, followee: Address) {
         follower.require_auth();
+
         if Self::is_blocked(env.clone(), followee.clone(), follower.clone()) {
             panic!("blocked");
         }
 
-        let following_key = StorageKey::Following(follower.clone());
+        let following_key = (FOLLOWS, follower.clone());
         let mut following_list: Vec<Address> = env
             .storage()
             .persistent()
@@ -296,7 +264,7 @@ impl LinkoraContract {
                 .set(&following_key, &following_list);
             Self::bump(&env, &following_key);
 
-            let followers_key = StorageKey::Followers(followee.clone());
+            let followers_key = (FOLLOWERS, followee.clone());
             let mut followers_list: Vec<Address> = env
                 .storage()
                 .persistent()
@@ -307,16 +275,15 @@ impl LinkoraContract {
                 .persistent()
                 .set(&followers_key, &followers_list);
             Self::bump(&env, &followers_key);
-
-            FollowEvent { follower, followee }.publish(&env); // Move inside if block
         }
-        // Remove the unconditional publish at the end
+
+        FollowEvent { follower, followee }.publish(&env);
     }
 
     pub fn unfollow(env: Env, follower: Address, followee: Address) {
         follower.require_auth();
 
-        let following_key = StorageKey::Following(follower.clone());
+        let following_key = (FOLLOWS, follower.clone());
         let mut following_list: Vec<Address> = env
             .storage()
             .persistent()
@@ -330,7 +297,7 @@ impl LinkoraContract {
                 .set(&following_key, &following_list);
             Self::bump(&env, &following_key);
 
-            let followers_key = StorageKey::Followers(followee.clone());
+            let followers_key = (FOLLOWERS, followee.clone());
             let mut followers_list: Vec<Address> = env
                 .storage()
                 .persistent()
@@ -343,17 +310,13 @@ impl LinkoraContract {
                     .set(&followers_key, &followers_list);
                 Self::bump(&env, &followers_key);
             }
+        }
 
-            UnfollowEvent { follower, followee }.publish(&env); // Move inside if block
-        }
-        // Remove the unconditional publish at the end
-            env.events()
-                .publish_event(&UnfollowEvent { follower, followee });
-        }
+        UnfollowEvent { follower, followee }.publish(&env);
     }
 
     pub fn get_following(env: Env, user: Address) -> Vec<Address> {
-        let key = StorageKey::Following(user);
+        let key = (FOLLOWS, user);
         let result: Vec<Address> = env
             .storage()
             .persistent()
@@ -366,7 +329,7 @@ impl LinkoraContract {
     }
 
     pub fn get_followers(env: Env, user: Address) -> Vec<Address> {
-        let key = StorageKey::Followers(user);
+        let key = (FOLLOWERS, user);
         let result: Vec<Address> = env
             .storage()
             .persistent()
@@ -422,8 +385,7 @@ impl LinkoraContract {
         validate_content(&content).expect("invalid content");
 
         let id: u64 = env.storage().instance().get(&POST_CT).unwrap_or(0u64) + 1;
-        let key = StorageKey::Posts(id);
-        let key = StorageKey::Post(id);
+        let key = (POSTS, id);
         env.storage().persistent().set(
             &key,
             &Post {
@@ -436,29 +398,19 @@ impl LinkoraContract {
             },
         );
         Self::bump(&env, &key);
-
-        let author_posts_key = StorageKey::AuthorPosts(author.clone());
-        let mut author_posts: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&author_posts_key)
-            .unwrap_or(Vec::new(&env));
-        author_posts.push_back(id);
-        env.storage().persistent().set(&author_posts_key, &author_posts);
-        Self::bump(&env, &author_posts_key);
-
         env.storage().instance().set(&POST_CT, &id);
         PostCreatedEvent { id, author }.publish(&env);
         id
     }
 
+    /// Returns the total number of posts ever created, not the current active count.
+    /// This counter is never decremented when posts are deleted.
     pub fn get_post_count(env: Env) -> u64 {
         env.storage().instance().get(&POST_CT).unwrap_or(0u64)
     }
 
     pub fn get_post(env: Env, id: u64) -> Option<Post> {
-        let key = StorageKey::Posts(id);
-        let key = StorageKey::Post(id);
+        let key = (POSTS, id);
         let result: Option<Post> = env.storage().persistent().get(&key);
         if result.is_some() {
             Self::bump(&env, &key);
@@ -466,44 +418,15 @@ impl LinkoraContract {
         result
     }
 
-    pub fn get_posts_by_author(env: Env, author: Address) -> Vec<u64> {
-        let key = StorageKey::AuthorPosts(author);
-        let result: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(Vec::new(&env));
-        if !result.is_empty() {
-            Self::bump(&env, &key);
-        }
-        result
-    }
-
     pub fn delete_post(env: Env, author: Address, post_id: u64) {
         author.require_auth();
-        let key = StorageKey::Posts(post_id);
-        let key = StorageKey::Post(post_id);
+        let key = (POSTS, post_id);
         let post: Post = env.storage().persistent().get(&key).unwrap_or_else(|| {
             panic!("post does not exist: {}", post_id);
         });
         assert!(post.author == author, "only author can delete post");
         env.storage().persistent().remove(&key);
-
-        let author_posts_key = StorageKey::AuthorPosts(author.clone());
-        if let Some(mut author_posts) = env
-            .storage()
-            .persistent()
-            .get::<_, Vec<u64>>(&author_posts_key)
-        {
-            if let Some(idx) = author_posts.iter().position(|id| id == post_id) {
-                author_posts.remove(idx as u32);
-                env.storage().persistent().set(&author_posts_key, &author_posts);
-                Self::bump(&env, &author_posts_key);
-            }
-        }
-
         PostDeleted { post_id, author }.publish(&env);
-        env.events().publish((symbol_short!("Linkora"), symbol_short!("post_del"), symbol_short!("v1")), PostDeleted { post_id, author });
     }
 
     // ── Reactions ─────────────────────────────────────────────────────────────
@@ -511,13 +434,12 @@ impl LinkoraContract {
     pub fn like_post(env: Env, user: Address, post_id: u64) {
         user.require_auth();
 
-        let like_key = StorageKey::Like(post_id, user.clone());
+        let like_key = (LIKES, post_id, user.clone());
         if env.storage().persistent().has(&like_key) {
             return;
         }
 
-        let post_key = StorageKey::Posts(post_id);
-        let post_key = StorageKey::Post(post_id);
+        let post_key = (POSTS, post_id);
         let mut post: Post = env
             .storage()
             .persistent()
@@ -528,18 +450,16 @@ impl LinkoraContract {
         Self::bump(&env, &post_key);
         env.storage().persistent().set(&like_key, &true);
         Self::bump(&env, &like_key);
-        LikePostEvent { user, post_id }.publish(&env);
     }
 
     pub fn get_like_count(env: Env, post_id: u64) -> u64 {
-        let key = StorageKey::Posts(post_id);
-        let key = StorageKey::Post(post_id);
+        let key = (POSTS, post_id);
         let result: Option<Post> = env.storage().persistent().get(&key);
         result.map(|p| p.like_count).unwrap_or(0)
     }
 
     pub fn has_liked(env: Env, user: Address, post_id: u64) -> bool {
-        let key = StorageKey::Like(post_id, user);
+        let key = (LIKES, post_id, user);
         env.storage().persistent().has(&key)
     }
 
@@ -549,8 +469,7 @@ impl LinkoraContract {
         assert!(amount > 0, "tip amount must be positive");
         tipper.require_auth();
 
-        let key = StorageKey::Posts(post_id);
-        let key = StorageKey::Post(post_id);
+        let key = (POSTS, post_id);
         let mut post: Post = env.storage().persistent().get(&key).unwrap_or_else(|| {
             panic!("post not found: {}", post_id);
         });
@@ -578,12 +497,7 @@ impl LinkoraContract {
         env.storage().persistent().set(&key, &post);
         Self::bump(&env, &key);
 
-        TipEvent {
-            tipper,
-            post_id,
-            amount,
-        }
-        .publish(&env);
+        TipEvent { tipper, post_id, amount }.publish(&env);
     }
 
     // ── Community Pool ────────────────────────────────────────────────────────
@@ -599,7 +513,7 @@ impl LinkoraContract {
     ) {
         admin.require_auth();
         Self::require_admin(&env);
-        let key = StorageKey::Pool(pool_id);
+        let key = (POOLS, pool_id);
         assert!(!env.storage().persistent().has(&key), "pool exists");
         assert!(
             threshold > 0 && threshold <= initial_admins.len(),
@@ -626,7 +540,7 @@ impl LinkoraContract {
     ) {
         assert!(amount > 0, "must be positive");
         depositor.require_auth();
-        let key = StorageKey::Pool(pool_id.clone());
+        let key = (POOLS, pool_id.clone());
         let mut pool: Pool = env
             .storage()
             .persistent()
@@ -634,18 +548,16 @@ impl LinkoraContract {
             .expect("pool not found");
         assert!(pool.token == token, "wrong token");
 
-        let contract_address = env.current_contract_address();
-        token::Client::new(&env, &token).transfer(&depositor, &contract_address, &amount);
+        token::Client::new(&env, &token).transfer(
+            &depositor,
+            &env.current_contract_address(),
+            &amount,
+        );
         pool.balance += amount;
         env.storage().persistent().set(&key, &pool);
         Self::bump(&env, &key);
 
-        PoolDepositEvent {
-            depositor,
-            pool_id,
-            amount,
-        }
-        .publish(&env);
+        PoolDepositEvent { depositor, pool_id, amount }.publish(&env);
     }
 
     /// Withdraw from a pool. Requires `threshold` valid admin signatures.
@@ -657,7 +569,7 @@ impl LinkoraContract {
         recipient: Address,
     ) {
         assert!(amount > 0, "must be positive");
-        let key = StorageKey::Pool(pool_id.clone());
+        let key = (POOLS, pool_id.clone());
         let mut pool: Pool = env
             .storage()
             .persistent()
@@ -672,24 +584,22 @@ impl LinkoraContract {
             );
             signer.require_auth();
         }
-        assert!(pool.balance >= amount, "insufficient pool balance");
+        assert!(pool.balance >= amount, "low balance");
 
         pool.balance -= amount;
         env.storage().persistent().set(&key, &pool);
         Self::bump(&env, &key);
-        let contract_address = env.current_contract_address();
-        token::Client::new(&env, &pool.token).transfer(&contract_address, &recipient, &amount);
+        token::Client::new(&env, &pool.token).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &amount,
+        );
 
-        PoolWithdrawEvent {
-            recipient,
-            pool_id,
-            amount,
-        }
-        .publish(&env);
+        PoolWithdrawEvent { recipient, pool_id, amount }.publish(&env);
     }
 
     pub fn get_pool(env: Env, pool_id: Symbol) -> Option<Pool> {
-        let key = StorageKey::Pool(pool_id);
+        let key = (POOLS, pool_id);
         let result: Option<Pool> = env.storage().persistent().get(&key);
         if result.is_some() {
             Self::bump(&env, &key);
